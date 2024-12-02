@@ -13,7 +13,7 @@ router.post('/doTransaction', auth, async (req, res) => {
 
         if (error) return res.status(400).send(error.details[0].message);
 
-        const { accountID, Type, Category, Amount } = req.body;
+        const { accountID, type, category, amount } = req.body;
 
         if (!ObjectId.isValid(new ObjectId(accountID))) return res.status(400).send("Enter the valid account number");
 
@@ -26,34 +26,40 @@ router.post('/doTransaction', auth, async (req, res) => {
         if (account.userID.toString() !== userID.toString()) return res.status(403).send("Unauthorized Access");
         if (!account) return res.status(404).send("account not found");
 
-        if (!account.isActive) return res.status(400).send("The account is inactive");
+        if (!account.is_active) return res.status(400).send("The account is inactive");
 
-        let newBalance = account.Balance;
+        let newBalance = account.balance;
 
-        if (Type === 'Credit') {
-            newBalance += Amount;
+        if (type === 'Credit') {
+            newBalance += amount;
         }
-        else if (Type === 'Debit') {
-            if (newBalance < Amount) {
+        else if (type === 'Debit') {
+            if (newBalance < amount) {
                 return res.status(400).send('Insufficient Balance');
             }
-            newBalance -= Amount;
+            newBalance -= amount;
         }
 
         const updatedAccount = await accountCollection.updateOne(
             { _id: new ObjectId(accountID) },
-            { $set: { Balance: newBalance } }
+            { $set: { balance: newBalance } }
         );
 
         if (updatedAccount.modifiedCount === 0) return res.status(400).send("unable to update the account balance");
 
+        const transaction_date = new Date();
+        year = transaction_date.getUTCFullYear();
+        month = transaction_date.getUTCMonth();
+
         const transaction = {
             accountID: new ObjectId(accountID),
             userID: new ObjectId(userID),
-            Type,
-            Amount,
-            Category,
-            date: new Date()
+            type,
+            amount,
+            category,
+            date: new Date(),
+            year : year,
+            month : month
         };
 
         const transactionresult = await transactionCollection.insertOne(transaction);
@@ -125,11 +131,11 @@ router.put('/updateTransaction/:id', auth, async (req, res) => {
 
         if (!existingTransaction) return res.status(404).send("Transaction not found");
 
-        const newAmount = req.body.Amount;
-        if (newAmount !== undefined && newAmount !== existingTransaction.Amount) {
-            const amountDifference = newAmount - existingTransaction.Amount;
+        const newAmount = req.body.amount;
+        if (newAmount !== undefined && newAmount !== existingTransaction.amount) {
+            const amountDifference = newAmount - existingTransaction.amount;
 
-            if (existingTransaction.Type === 'Debit') {
+            if (existingTransaction.type === 'Debit') {
                 amountDifference *= -1;
             }
 

@@ -11,7 +11,7 @@ router.post('/createBudget', auth, async (req, res) => {
         const { error } = budgetSchema.validate(req.body);
         if (error) return res.status(400).send(error.message);
 
-        const { category, amount, month } = req.body;
+        const { category, amount, month, year } = req.body;
 
         const connection = await connectToDB();
 
@@ -23,7 +23,8 @@ router.post('/createBudget', auth, async (req, res) => {
             category: category,
             amount: amount,
             month: month,
-            userID: new ObjectId(userID)
+            userID: new ObjectId(userID),
+            year : year
         });
 
         if (existingBudget) return res.status(400).send("The budget with the same credentials already exists");
@@ -32,7 +33,8 @@ router.post('/createBudget', auth, async (req, res) => {
             category,
             amount,
             month,
-            userID: new ObjectId(userID),//use uuid as the alternative here 
+            userID: new ObjectId(userID),//use uuid as the alternative here
+            year, 
             date: new Date()
         }
 
@@ -76,7 +78,7 @@ router.get('/getBudgetById/:id', auth, async (req, res) => {
         const connection = await connectToDB();
         const budgetCollection = connection.collection('Budgets');
 
-        const budget = await budgetCollection.findOne({
+        const budget = await budgetCollection.findOne({//use findonebyid 
             _id: new ObjectId(budgetID),
             userID: new ObjectId(userID)//use uuid
         });
@@ -94,11 +96,11 @@ router.get('/getBudgetById/:id', auth, async (req, res) => {
 
 router.put('/updateBudget/:id', auth, async (req, res) => {
     try {
-        const userID = req.user._id;
+        const userID = req.user._id;//perform the authorization here 
         const budgetID = req.params.id;
 
         if (!ObjectId.isValid(budgetID)) {
-            return res.status(400).send("Invalid Budget ID format");
+            return res.status(400).send("Invalid Budget ID format");//use this only foir budget id 
         }
 
         const { error } = budgetUpdateSchema.validate(req.body);
@@ -107,9 +109,9 @@ router.put('/updateBudget/:id', auth, async (req, res) => {
         const connection = await connectToDB();
         const budgetCollection = connection.collection('Budgets');
 
-        const existingBudget = await budgetCollection.findOne({
+        const existingBudget = await budgetCollection.findOne({//findbyid
             _id: new ObjectId(budgetID),
-            userID: new ObjectId(userID)
+            userID: new ObjectId(userID)//uuid
         });
 
         if (!existingBudget) {
@@ -126,7 +128,7 @@ router.put('/updateBudget/:id', auth, async (req, res) => {
             return res.status(400).send("Failed to update the budget");
         }
 
-        return res.status(200).send(updatedBudget);
+        return res.status(200).send(updatedBudget);//response object
     } catch (err) {
         console.error("Error updating budget:", err.message);
         return res.status(500).send("Internal Server Error");

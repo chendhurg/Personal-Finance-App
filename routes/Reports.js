@@ -6,25 +6,23 @@ const { ObjectId } = require('mongodb');
 const connectToDB = require('../startup/connection');
 const { incomeExpenseSchema, trendSchema } = require('../validation/Report');
 
-router.get('/getIncomeExpenseReport', auth, async (req, res) => {
+router.get('/getIncomeExpenseReport', auth, async (req, res) => { 
     try {
         const { error } = incomeExpenseSchema.validate(req.query);
         if (error) return res.status(400).send(error);
 
         const { year, month, category, type } = req.query;
-        const start = new Date(year, month - 1, 1);
-        const end = new Date(year, month, 0, 23, 59, 59, 999);
-
-        if (start > end) return res.status(400).send("Start date cannot be higher than the End date");
 
         const connection = await connectToDB();
         const transactionCollection = connection.collection('Transactions');
+        const budgetCollection = connection.collection('Budgets');
 
         const matchQuery = {
             userID: new ObjectId(req.user._id),
-            date: { $gte: start, $lte: end },
-            ...(category && { Category: category }),
-            ...(type && { Type: type })
+            year :parseInt(year) ,
+            month : parseInt(month),
+            ...(category && { category: category }),
+            ...(type && { type: type })
         };
 
         const pipeline = [
@@ -33,17 +31,17 @@ router.get('/getIncomeExpenseReport', auth, async (req, res) => {
             },
             {
                 $group: {
-                    _id: { Category: "$Category", Type: "$Type" },
-                    total_amount: { $sum: "$Amount" }
+                    _id: { category: "$category", type: "$type" },
+                    total_amount: { $sum: "$amount" }
                 }
             },
             {
                 $lookup: {
                     from: "Budgets",
                     let: {
-                        category: "$_id.Category",
-                        month: { $month: "$date" },
-                        year: { $year: "$date" }
+                        category: "$_id.category",
+                        month: parseInt(req.query.month),
+                        year: parseInt(req.query.year)
                     },
                     pipeline: [
                         {
@@ -69,8 +67,8 @@ router.get('/getIncomeExpenseReport', auth, async (req, res) => {
             },
             {
                 $project: {
-                    Category: "$_id.Category",
-                    Type: "$_id.Type",
+                    Category: "$_id.category",
+                    Type: "$_id.type",
                     total_amount: 1,
                     budget_amount: { $ifNull: ["$budgetInfo.amount", 0] },
                     _id: 0
@@ -80,7 +78,7 @@ router.get('/getIncomeExpenseReport', auth, async (req, res) => {
 
         const report = await transactionCollection.aggregate(pipeline).toArray();
 
-        if (report.length === 0) return res.status(404).send("No transactions match those credentials");
+        if (report.length === 0) return res.status(404).send("No transactions found for the given month and year");
 
         res.status(200).json(report);
     } catch (err) {
@@ -88,6 +86,7 @@ router.get('/getIncomeExpenseReport', auth, async (req, res) => {
         res.status(500).send("Internal Server Error");
     }
 });
+
 
 router.get('/getDashboard', auth, async (req, res) => {
     try {
